@@ -1,0 +1,302 @@
+-- บริการและตัวแปรผู้เล่น
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+
+-- ลบ UI เก่าทิ้ง (ถ้ามี)
+if PlayerGui:FindFirstChild("EggFruitGui") then
+	PlayerGui.EggFruitGui:Destroy()
+end
+
+-- สร้าง ScreenGui หลัก (DisplayOrder สูงสุด ทับ UI เกม)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "EggFruitGui"
+screenGui.ResetOnSpawn = false
+screenGui.DisplayOrder = 999999
+screenGui.IgnoreGuiInset = true
+screenGui.Parent = PlayerGui
+
+-- ==========================================
+-- 0. ปุ่มเปิด-ปิด UI (ปุ่มลอยอิสระ ทับ UI เกม)
+-- ==========================================
+local toggleButton = Instance.new("ImageButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Size = UDim2.new(0, 45, 0, 45)
+toggleButton.Position = UDim2.new(0, 15, 0.2, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(35, 38, 45)
+toggleButton.Image = "rbxassetid://71951746964313"
+toggleButton.ZIndex = 10
+toggleButton.Parent = screenGui
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 12)
+toggleCorner.Parent = toggleButton
+
+local toggleStroke = Instance.new("UIStroke")
+toggleStroke.Color = Color3.fromRGB(100, 105, 115)
+toggleStroke.Thickness = 2
+toggleStroke.Parent = toggleButton
+
+local draggingToggle = false
+local dragInputToggle, dragStartToggle, startPosToggle
+local movedToggle = false
+
+toggleButton.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingToggle = true
+		dragStartToggle = input.Position
+		startPosToggle = toggleButton.Position
+		movedToggle = false
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				draggingToggle = false
+			end
+		end)
+	end
+end)
+
+toggleButton.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInputToggle = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if draggingToggle and input == dragInputToggle then
+		local delta = input.Position - dragStartToggle
+		if delta.Magnitude > 5 then
+			movedToggle = true
+		end
+		toggleButton.Position = UDim2.new(
+			startPosToggle.X.Scale,
+			startPosToggle.X.Offset + delta.X,
+			startPosToggle.Y.Scale,
+			startPosToggle.Y.Offset + delta.Y
+		)
+	end
+end)
+
+-- ==========================================
+-- 1. กรอบหน้าต่างหลัก (MainFrame)
+-- ==========================================
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 520, 0, 380)
+mainFrame.Position = UDim2.new(0.5, -260, 0.5, -190)
+mainFrame.BackgroundColor3 = Color3.fromRGB(28, 30, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = true
+mainFrame.ZIndex = 2
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 10)
+mainCorner.Parent = mainFrame
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Color = Color3.fromRGB(70, 75, 85)
+mainStroke.Thickness = 2
+mainStroke.Parent = mainFrame
+
+local topBar = Instance.new("Frame")
+topBar.Size = UDim2.new(1, 0, 0, 45)
+topBar.BackgroundTransparency = 1
+topBar.ZIndex = 3
+topBar.Parent = mainFrame
+
+local draggingMain = false
+local dragInputMain, dragStartMain, startPosMain
+
+topBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingMain = true
+		dragStartMain = input.Position
+		startPosMain = mainFrame.Position
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				draggingMain = false
+			end
+		end)
+	end
+end)
+
+topBar.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInputMain = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if draggingMain and input == dragInputMain then
+		local delta = input.Position - dragStartMain
+		mainFrame.Position = UDim2.new(
+			startPosMain.X.Scale,
+			startPosMain.X.Offset + delta.X,
+			startPosMain.Y.Scale,
+			startPosMain.Y.Offset + delta.Y
+		)
+	end
+end)
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(0, 320, 1, 0)
+titleLabel.Position = UDim2.new(0, 15, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "Ride a Pet - Special Egg Detector"
+titleLabel.TextColor3 = Color3.fromRGB(240, 240, 245)
+titleLabel.TextSize = 16
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.ZIndex = 3
+titleLabel.Parent = topBar
+
+local subTitle = Instance.new("TextLabel")
+subTitle.Size = UDim2.new(0, 180, 0, 15)
+subTitle.Position = UDim2.new(0, 17, 0, 28)
+subTitle.BackgroundTransparency = 1
+subTitle.Text = "Settings Menu Only"
+subTitle.TextColor3 = Color3.fromRGB(150, 155, 165)
+subTitle.TextSize = 10
+subTitle.Font = Enum.Font.Gotham
+subTitle.TextXAlignment = Enum.TextXAlignment.Left
+subTitle.ZIndex = 3
+subTitle.Parent = topBar
+
+toggleButton.MouseButton1Click:Connect(function()
+	if not movedToggle then
+		mainFrame.Visible = not mainFrame.Visible
+	end
+end)
+
+-- ==========================================
+-- 2. เมนูด้านซ้าย (Sidebar)
+-- ==========================================
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, 130, 1, -55)
+sidebar.Position = UDim2.new(0, 10, 0, 45)
+sidebar.BackgroundColor3 = Color3.fromRGB(22, 24, 28)
+sidebar.BorderSizePixel = 0
+sidebar.ZIndex = 3
+sidebar.Parent = mainFrame
+
+local sidebarCorner = Instance.new("UICorner")
+sidebarCorner.CornerRadius = UDim.new(0, 8)
+sidebarCorner.Parent = sidebar
+
+local sidebarStroke = Instance.new("UIStroke")
+sidebarStroke.Color = Color3.fromRGB(50, 55, 65)
+sidebarStroke.Thickness = 1
+sidebarStroke.Parent = sidebar
+
+local btnSettings = Instance.new("TextButton")
+btnSettings.Size = UDim2.new(1, -10, 0, 35)
+btnSettings.Position = UDim2.new(0, 5, 0, 15)
+btnSettings.BackgroundColor3 = Color3.fromRGB(50, 55, 65)
+btnSettings.Text = "⚙️ ตั้งค่า"
+btnSettings.TextColor3 = Color3.fromRGB(240, 240, 245)
+btnSettings.TextSize = 12
+btnSettings.Font = Enum.Font.GothamBold
+btnSettings.ZIndex = 4
+btnSettings.Parent = sidebar
+
+local settingsCorner = Instance.new("UICorner")
+settingsCorner.CornerRadius = UDim.new(0, 6)
+settingsCorner.Parent = btnSettings
+
+-- ==========================================
+-- 3. หน้าต่างเนื้อหาขวา (Content Panel)
+-- ==========================================
+local contentPanel = Instance.new("Frame")
+contentPanel.Size = UDim2.new(1, -150, 1, -55)
+contentPanel.Position = UDim2.new(0, 145, 0, 45)
+contentPanel.BackgroundColor3 = Color3.fromRGB(22, 24, 28)
+contentPanel.BorderSizePixel = 0
+contentPanel.ZIndex = 3
+contentPanel.Parent = mainFrame
+
+local contentCorner = Instance.new("UICorner")
+contentCorner.CornerRadius = UDim.new(0, 8)
+contentCorner.Parent = contentPanel
+
+local contentStroke = Instance.new("UIStroke")
+contentStroke.Color = Color3.fromRGB(50, 55, 65)
+contentStroke.Thickness = 1
+contentStroke.Parent = contentPanel
+
+-- หน้าตั้งค่า
+local pageSettings = Instance.new("Frame")
+pageSettings.Size = UDim2.new(1, 0, 1, 0)
+pageSettings.BackgroundTransparency = 1
+pageSettings.Visible = true
+pageSettings.ZIndex = 4
+pageSettings.Parent = contentPanel
+
+local settingsTitle = Instance.new("TextLabel")
+settingsTitle.Size = UDim2.new(1, -15, 0, 30)
+settingsTitle.Position = UDim2.new(0, 10, 0, 8)
+settingsTitle.BackgroundTransparency = 1
+settingsTitle.Text = "◆ ข้อมูลระบบ (INFO)"
+settingsTitle.TextColor3 = Color3.fromRGB(240, 240, 245)
+settingsTitle.TextSize = 13
+settingsTitle.Font = Enum.Font.GothamBold
+settingsTitle.TextXAlignment = Enum.TextXAlignment.Left
+settingsTitle.ZIndex = 4
+settingsTitle.Parent = pageSettings
+
+local settingsLabel = Instance.new("TextLabel")
+settingsLabel.Size = UDim2.new(1, -20, 0, 70)
+settingsLabel.Position = UDim2.new(0, 10, 0, 45)
+settingsLabel.BackgroundTransparency = 1
+settingsLabel.Text = "- ยกเลิกฟังก์ชันระบบฟาร์มไข่อัตโนมัติออกแล้ว\n- หน้านี้คงเหลือไว้เฉพาะหน้าต่างการตั้งค่าและข้อมูลพื้นฐาน"
+settingsLabel.TextColor3 = Color3.fromRGB(150, 155, 165)
+settingsLabel.TextSize = 11
+settingsLabel.Font = Enum.Font.Gotham
+settingsLabel.TextXAlignment = Enum.TextXAlignment.Left
+settingsLabel.ZIndex = 4
+settingsLabel.Parent = pageSettings
+
+-- ==========================================
+-- 4. ปุ่มขยาย/ปรับขนาด UI (Resize Handle)
+-- ==========================================
+local resizeButton = Instance.new("TextButton")
+resizeButton.Name = "ResizeHandle"
+resizeButton.Size = UDim2.new(0, 20, 0, 20)
+resizeButton.Position = UDim2.new(1, -20, 1, -20)
+resizeButton.BackgroundColor3 = Color3.fromRGB(70, 75, 85)
+resizeButton.Text = ""
+resizeButton.ZIndex = 5
+resizeButton.Parent = mainFrame
+
+local resizeCorner = Instance.new("UICorner")
+resizeCorner.CornerRadius = UDim.new(0, 4)
+resizeCorner.Parent = resizeButton
+
+local draggingResize = false
+local resizeStart = nil
+local startSize = nil
+
+resizeButton.MouseButton1Down:Connect(function()
+	draggingResize = true
+	resizeStart = UserInputService:GetMouseLocation()
+	startSize = mainFrame.AbsoluteSize
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingResize = false
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if draggingResize and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local currentPos = UserInputService:GetMouseLocation()
+		local delta = currentPos - resizeStart
+		local newWidth = math.clamp(startSize.X + delta.X, 400, 900)
+		local newHeight = math.clamp(startSize.Y + delta.Y, 250, 600)
+		mainFrame.Size = UDim2.new(0, newWidth, 0, newHeight)
+	end
+end)
