@@ -1,0 +1,511 @@
+-- บริการและตัวแปรผู้เล่น
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local UserInputService = game:GetService("UserInputService")
+local Workspace = game:GetService("Workspace")
+local TweenService = game:GetService("TweenService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+-- ลบ UI เก่าทิ้ง (ถ้ามี)
+if PlayerGui:FindFirstChild("EggFruitGui") then
+	PlayerGui.EggFruitGui:Destroy()
+end
+
+-- สร้าง ScreenGui หลัก (DisplayOrder สูงสุด ทับ UI เกม)
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "EggFruitGui"
+screenGui.ResetOnSpawn = false
+screenGui.DisplayOrder = 999999
+screenGui.IgnoreGuiInset = true
+screenGui.Parent = PlayerGui
+
+-- ==========================================
+-- 0. ปุ่มเปิด-ปิด UI (ปุ่มลอยอิสระ ทับ UI เกม)
+-- ==========================================
+local toggleButton = Instance.new("ImageButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Size = UDim2.new(0, 40, 0, 40)
+toggleButton.Position = UDim2.new(0, 15, 0.2, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(35, 38, 45)
+toggleButton.Image = "rbxassetid://71951746964313"
+toggleButton.ZIndex = 10
+toggleButton.Parent = screenGui
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 10)
+toggleCorner.Parent = toggleButton
+
+local toggleStroke = Instance.new("UIStroke")
+toggleStroke.Color = Color3.fromRGB(100, 105, 115)
+toggleStroke.Thickness = 2
+toggleStroke.Parent = toggleButton
+
+local draggingToggle = false
+local dragInputToggle, dragStartToggle, startPosToggle
+local movedToggle = false
+
+toggleButton.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingToggle = true
+		dragStartToggle = input.Position
+		startPosToggle = toggleButton.Position
+		movedToggle = false
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				draggingToggle = false
+			end
+		end)
+	end
+end)
+
+toggleButton.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInputToggle = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if draggingToggle and input == dragInputToggle then
+		local delta = input.Position - dragStartToggle
+		if delta.Magnitude > 5 then
+			movedToggle = true
+		end
+		toggleButton.Position = UDim2.new(
+			startPosToggle.X.Scale,
+			startPosToggle.X.Offset + delta.X,
+			startPosToggle.Y.Scale,
+			startPosToggle.Y.Offset + delta.Y
+		)
+	end
+end)
+
+-- ==========================================
+-- 1. กรอบหน้าต่างหลัก (MainFrame)
+-- ==========================================
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 420, 0, 300)
+mainFrame.Position = UDim2.new(0.5, -210, 0.5, -150)
+mainFrame.BackgroundColor3 = Color3.fromRGB(28, 30, 35)
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = true
+mainFrame.ZIndex = 2
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 8)
+mainCorner.Parent = mainFrame
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Color = Color3.fromRGB(70, 75, 85)
+mainStroke.Thickness = 2
+mainStroke.Parent = mainFrame
+
+local topBar = Instance.new("Frame")
+topBar.Size = UDim2.new(1, 0, 0, 35)
+topBar.BackgroundTransparency = 1
+topBar.ZIndex = 3
+topBar.Parent = mainFrame
+
+local draggingMain = false
+local dragInputMain, dragStartMain, startPosMain
+
+topBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingMain = true
+		dragStartMain = input.Position
+		startPosMain = mainFrame.Position
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				draggingMain = false
+			end
+		end)
+	end
+end)
+
+topBar.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInputMain = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if draggingMain and input == dragInputMain then
+		local delta = input.Position - dragStartMain
+		mainFrame.Position = UDim2.new(
+			startPosMain.X.Scale,
+			startPosMain.X.Offset + delta.X,
+			startPosMain.Y.Scale,
+			startPosMain.Y.Offset + delta.Y
+		)
+	end
+end)
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(0, 300, 1, 0)
+titleLabel.Position = UDim2.new(0, 12, 0, 0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "Ride a Pet - Egg Farmer"
+titleLabel.TextColor3 = Color3.fromRGB(240, 240, 245)
+titleLabel.TextSize = 14
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.ZIndex = 3
+titleLabel.Parent = topBar
+
+toggleButton.MouseButton1Click:Connect(function()
+	if not movedToggle then
+		mainFrame.Visible = not mainFrame.Visible
+	end
+end)
+
+-- ==========================================
+-- 2. เมนูด้านซ้าย (Sidebar)
+-- ==========================================
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, 110, 1, -45)
+sidebar.Position = UDim2.new(0, 8, 0, 35)
+sidebar.BackgroundColor3 = Color3.fromRGB(22, 24, 28)
+sidebar.BorderSizePixel = 0
+sidebar.ZIndex = 3
+sidebar.Parent = mainFrame
+
+local sidebarCorner = Instance.new("UICorner")
+sidebarCorner.CornerRadius = UDim.new(0, 6)
+sidebarCorner.Parent = sidebar
+
+local btnFarm = Instance.new("TextButton")
+btnFarm.Size = UDim2.new(1, -8, 0, 30)
+btnFarm.Position = UDim2.new(0, 4, 0, 10)
+btnFarm.BackgroundColor3 = Color3.fromRGB(50, 55, 65)
+btnFarm.Text = "🥚 ฟาร์มไข่"
+btnFarm.TextColor3 = Color3.fromRGB(240, 240, 245)
+btnFarm.TextSize = 11
+btnFarm.Font = Enum.Font.GothamBold
+btnFarm.ZIndex = 4
+btnFarm.Parent = sidebar
+
+local farmCorner = Instance.new("UICorner")
+farmCorner.CornerRadius = UDim.new(0, 5)
+farmCorner.Parent = btnFarm
+
+local btnSettings = Instance.new("TextButton")
+btnSettings.Size = UDim2.new(1, -8, 0, 30)
+btnSettings.Position = UDim2.new(0, 4, 0, 45)
+btnSettings.BackgroundColor3 = Color3.fromRGB(35, 38, 45)
+btnSettings.Text = "⚙️ ข้อมูล"
+btnSettings.TextColor3 = Color3.fromRGB(180, 185, 195)
+btnSettings.TextSize = 11
+btnSettings.Font = Enum.Font.GothamBold
+btnSettings.ZIndex = 4
+btnSettings.Parent = sidebar
+
+local settingsCorner = Instance.new("UICorner")
+settingsCorner.CornerRadius = UDim.new(0, 5)
+settingsCorner.Parent = btnSettings
+
+-- ==========================================
+-- 3. หน้าต่างเนื้อหาขวา (Content Panel)
+-- ==========================================
+local contentPanel = Instance.new("Frame")
+contentPanel.Size = UDim2.new(1, -128, 1, -45)
+contentPanel.Position = UDim2.new(0, 122, 0, 35)
+contentPanel.BackgroundColor3 = Color3.fromRGB(22, 24, 28)
+contentPanel.BorderSizePixel = 0
+contentPanel.ZIndex = 3
+contentPanel.Parent = mainFrame
+
+local contentCorner = Instance.new("UICorner")
+contentCorner.CornerRadius = UDim.new(0, 6)
+contentCorner.Parent = contentPanel
+
+-- หน้าฟาร์มไข่ (Egg Farm Page)
+local pageFarm = Instance.new("ScrollingFrame")
+pageFarm.Size = UDim2.new(1, 0, 1, 0)
+pageFarm.BackgroundTransparency = 1
+pageFarm.Visible = true
+pageFarm.ZIndex = 4
+pageFarm.CanvasSize = UDim2.new(0, 0, 0, 260)
+pageFarm.ScrollBarThickness = 3
+pageFarm.Parent = contentPanel
+
+-- สวิตช์เปิด-ปิด ฟาร์มไข่
+local toggleFarmFrame = Instance.new("Frame")
+toggleFarmFrame.Size = UDim2.new(1, -14, 0, 35)
+toggleFarmFrame.Position = UDim2.new(0, 7, 0, 8)
+toggleFarmFrame.BackgroundColor3 = Color3.fromRGB(35, 38, 45)
+toggleFarmFrame.ZIndex = 4
+toggleFarmFrame.Parent = pageFarm
+
+local tfCorner = Instance.new("UICorner")
+tfCorner.CornerRadius = UDim.new(0, 5)
+tfCorner.Parent = toggleFarmFrame
+
+local tfLabel = Instance.new("TextLabel")
+tfLabel.Size = UDim2.new(0, 160, 1, 0)
+tfLabel.Position = UDim2.new(0, 10, 0, 0)
+tfLabel.BackgroundTransparency = 1
+tfLabel.Text = "ออโต้เก็บไข่ (ความเร็ว 450)"
+tfLabel.TextColor3 = Color3.fromRGB(240, 240, 245)
+tfLabel.TextSize = 11
+tfLabel.Font = Enum.Font.GothamBold
+tfLabel.TextXAlignment = Enum.TextXAlignment.Left
+tfLabel.ZIndex = 4
+tfLabel.Parent = toggleFarmFrame
+
+local tfSwitchBtn = Instance.new("TextButton")
+tfSwitchBtn.Size = UDim2.new(0, 50, 0, 22)
+tfSwitchBtn.Position = UDim2.new(1, -58, 0.5, -11)
+tfSwitchBtn.BackgroundColor3 = Color3.fromRGB(70, 75, 85)
+tfSwitchBtn.Text = "OFF"
+tfSwitchBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+tfSwitchBtn.TextSize = 10
+tfSwitchBtn.Font = Enum.Font.GothamBold
+tfSwitchBtn.ZIndex = 5
+tfSwitchBtn.Parent = toggleFarmFrame
+
+local tfsCorner = Instance.new("UICorner")
+tfsCorner.CornerRadius = UDim.new(0, 4)
+tfsCorner.Parent = tfSwitchBtn
+
+-- ตารางเลือกชนิดไข่
+local eggTypes = {"Volcanic Egg", "Cherub Egg", "Solaris Egg"}
+local eggToggles = {}
+
+for i, eggName in ipairs(eggTypes) do
+	local f = Instance.new("Frame")
+	f.Size = UDim2.new(1, -14, 0, 30)
+	f.Position = UDim2.new(0, 7, 0, 48 + ((i - 1) * 34))
+	f.BackgroundColor3 = Color3.fromRGB(32, 35, 42)
+	f.ZIndex = 4
+	f.Parent = pageFarm
+	
+	local fc = Instance.new("UICorner")
+	fc.CornerRadius = UDim.new(0, 5)
+	fc.Parent = f
+	
+	local lbl = Instance.new("TextLabel")
+	lbl.Size = UDim2.new(0, 150, 1, 0)
+	lbl.Position = UDim2.new(0, 10, 0, 0)
+	lbl.BackgroundTransparency = 1
+	lbl.Text = "🥚 " .. eggName
+	lbl.TextColor3 = Color3.fromRGB(220, 220, 225)
+	lbl.TextSize = 10
+	lbl.Font = Enum.Font.Gotham
+	lbl.TextXAlignment = Enum.TextXAlignment.Left
+	lbl.ZIndex = 4
+	lbl.Parent = f
+	
+	local chk = Instance.new("TextButton")
+	chk.Size = UDim2.new(0, 20, 0, 20)
+	chk.Position = UDim2.new(1, -28, 0.5, -10)
+	chk.BackgroundColor3 = Color3.fromRGB(50, 55, 65)
+	chk.Text = "✓"
+	chk.TextColor3 = Color3.fromRGB(0, 255, 120)
+	chk.TextSize = 12
+	chk.Font = Enum.Font.GothamBold
+	chk.ZIndex = 5
+	chk.Parent = f
+	
+	local cc = Instance.new("UICorner")
+	cc.CornerRadius = UDim.new(0, 4)
+	cc.Parent = chk
+	
+	local isSelected = true
+	eggToggles[eggName] = true
+	
+	chk.MouseButton1Click:Connect(function()
+		isSelected = not isSelected
+		eggToggles[eggName] = isSelected
+		if isSelected then
+			chk.TextColor3 = Color3.fromRGB(0, 255, 120)
+			chk.Text = "✓"
+		else
+			chk.TextColor3 = Color3.fromRGB(150, 150, 150)
+			chk.Text = ""
+		end
+	end)
+end
+
+-- หน้าข้อมูลระบบ (Settings Page)
+local pageSettings = Instance.new("Frame")
+pageSettings.Size = UDim2.new(1, 0, 1, 0)
+pageSettings.BackgroundTransparency = 1
+pageSettings.Visible = false
+pageSettings.ZIndex = 4
+pageSettings.Parent = contentPanel
+
+local settingsLabel = Instance.new("TextLabel")
+settingsLabel.Size = UDim2.new(1, -14, 1, -16)
+settingsLabel.Position = UDim2.new(0, 7, 0, 8)
+settingsLabel.BackgroundTransparency = 1
+settingsLabel.Text = "• ตรวจจับไข่เกิดในแผนที่อัตโนมัติ\n• ยกเว้นและข้ามไข่ที่วางอยู่ในบ้าน/แปลง\n• บินเก็บไข่ที่เลือกด้วยความเร็ว 450\n• กด E ค้าง 1.5 วิ แล้วกลับจุดเดิม"
+settingsLabel.TextColor3 = Color3.fromRGB(160, 165, 175)
+settingsLabel.TextSize = 10
+settingsLabel.Font = Enum.Font.Gotham
+settingsLabel.TextXAlignment = Enum.TextXAlignment.Left
+settingsLabel.TextYAlignment = Enum.TextYAlignment.Top
+settingsLabel.ZIndex = 4
+settingsLabel.Parent = pageSettings
+
+-- สลับหน้า Tabs
+btnFarm.MouseButton1Click:Connect(function()
+	pageFarm.Visible = true
+	pageSettings.Visible = false
+	btnFarm.BackgroundColor3 = Color3.fromRGB(50, 55, 65)
+	btnFarm.TextColor3 = Color3.fromRGB(240, 240, 245)
+	btnSettings.BackgroundColor3 = Color3.fromRGB(35, 38, 45)
+	btnSettings.TextColor3 = Color3.fromRGB(180, 185, 195)
+end)
+
+btnSettings.MouseButton1Click:Connect(function()
+	pageFarm.Visible = false
+	pageSettings.Visible = true
+	btnSettings.BackgroundColor3 = Color3.fromRGB(50, 55, 65)
+	btnSettings.TextColor3 = Color3.fromRGB(240, 240, 245)
+	btnFarm.BackgroundColor3 = Color3.fromRGB(35, 38, 45)
+	btnFarm.TextColor3 = Color3.fromRGB(180, 185, 195)
+end)
+
+-- ==========================================
+-- 4. ระบบฟังก์ชันฟาร์มไข่อัตโนมัติ (Egg Farm Logic)
+-- ==========================================
+local isFarming = false
+local startPosition = nil
+
+tfSwitchBtn.MouseButton1Click:Connect(function()
+	isFarming = not isFarming
+	if isFarming then
+		tfSwitchBtn.Text = "ON"
+		tfSwitchBtn.BackgroundColor3 = Color3.fromRGB(0, 200, 100)
+		if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+			startPosition = LocalPlayer.Character.HumanoidRootPart.CFrame
+		end
+	else
+		tfSwitchBtn.Text = "OFF"
+		tfSwitchBtn.BackgroundColor3 = Color3.fromRGB(70, 75, 85)
+	end
+end)
+
+-- ฟังก์ชันเช็คว่าไข่อยู่ในโซนบ้านหรือสิ่งก่อสร้างของผู้เล่นหรือไม่
+local function isInHouse(targetPart)
+	local current = targetPart.Parent
+	while current and current ~= Workspace do
+		local nameLower = string.lower(current.Name)
+		-- ตรวจจับคำค้นหาที่เกี่ยวข้องกับบ้าน แปลง หรือฐานของผู้เล่น
+		if nameLower:find("house") or nameLower:find("home") or nameLower:find("plot") or nameLower:find("base") or nameLower:find("interior") or nameLower:find("room") then
+			return true
+		end
+		current = current.Parent
+	end
+	return false
+end
+
+task.spawn(function()
+	while true do
+		task.wait(0.5)
+		if isFarming then
+			local character = LocalPlayer.Character
+			if character and character:FindFirstChild("HumanoidRootPart") then
+				local hrp = character.HumanoidRootPart
+				
+				if not startPosition then
+					startPosition = hrp.CFrame
+				end
+				
+				for _, obj in ipairs(Workspace:GetDescendants()) do
+					if not isFarming then break end
+					
+					local eggFoundName = nil
+					for _, nameCheck in ipairs(eggTypes) do
+						if eggToggles[nameCheck] and (obj.Name == nameCheck or string.find(obj.Name, nameCheck)) then
+							eggFoundName = nameCheck
+							break
+						end
+					end
+					
+					if eggFoundName then
+						local targetPart = nil
+						if obj:IsA("Model") then
+							targetPart = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
+						elseif obj:IsA("BasePart") then
+							targetPart = obj
+						end
+						
+						-- เช็คเงื่อนไข: ต้องมีตัวตน และไม่อยู่ในบ้าน
+						if targetPart and not isInHouse(targetPart) then
+							local distance = (hrp.Position - targetPart.Position).Magnitude
+							local speed = 450
+							local travelTime = distance / speed
+							
+							-- บินไปหาไข่
+							local tween = TweenService:Create(hrp, TweenInfo.new(travelTime, Enum.EasingStyle.Linear), {CFrame = targetPart.CFrame + Vector3.new(0, 3, 0)})
+							tween:Play()
+							tween.Completed:Wait()
+							
+							-- กดปุ่ม E ค้างไว้ 1.5 วินาที
+							VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+							task.wait(1.5)
+							VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+							task.wait(0.2)
+							
+							-- กลับจุดเริ่มต้นทันที
+							local returnDist = (hrp.Position - startPosition.Position).Magnitude
+							local returnTime = returnDist / speed
+							local returnTween = TweenService:Create(hrp, TweenInfo.new(returnTime, Enum.EasingStyle.Linear), {CFrame = startPosition})
+							returnTween:Play()
+							returnTween.Completed:Wait()
+							
+							task.wait(0.3)
+						end
+					end
+				end
+			end
+		end
+	end
+end)
+
+-- ==========================================
+-- 5. ปุ่มขยาย/ปรับขนาด UI (Resize Handle)
+-- ==========================================
+local resizeButton = Instance.new("TextButton")
+resizeButton.Name = "ResizeHandle"
+resizeButton.Size = UDim2.new(0, 16, 0, 16)
+resizeButton.Position = UDim2.new(1, -16, 1, -16)
+resizeButton.BackgroundColor3 = Color3.fromRGB(70, 75, 85)
+resizeButton.Text = ""
+resizeButton.ZIndex = 5
+resizeButton.Parent = mainFrame
+
+local resizeCorner = Instance.new("UICorner")
+resizeCorner.CornerRadius = UDim.new(0, 4)
+resizeCorner.Parent = resizeButton
+
+local draggingResize = false
+local resizeStart = nil
+local startSize = nil
+
+resizeButton.MouseButton1Down:Connect(function()
+	draggingResize = true
+	resizeStart = UserInputService:GetMouseLocation()
+	startSize = mainFrame.AbsoluteSize
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingResize = false
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if draggingResize and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local currentPos = UserInputService:GetMouseLocation()
+		local delta = currentPos - resizeStart
+		local newWidth = math.clamp(startSize.X + delta.X, 350, 700)
+		local newHeight = math.clamp(startSize.Y + delta.Y, 220, 500)
+		mainFrame.Size = UDim2.new(0, newWidth, 0, newHeight)
+	end
+end)
