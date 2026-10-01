@@ -1,0 +1,601 @@
+-- บริการและตัวแปรผู้เล่น
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local UserInputService = game:GetService("UserInputService")
+local RunService = game:GetService("RunService")
+local Camera = workspace.CurrentCamera
+local TweenService = game:GetService("TweenService")
+
+-- ลบ UI เก่าทิ้ง (ถ้ามี)
+if PlayerGui:FindFirstChild("EggFruitGui") then
+	PlayerGui.EggFruitGui:Destroy()
+end
+
+-- สร้าง ScreenGui หลัก
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "EggFruitGui"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = PlayerGui
+
+-- ==========================================
+-- 0. ปุ่มซ้อน UI (ImageButton) สำหรับเปิดหน้าต่างกลับมา
+-- ==========================================
+local toggleButton = Instance.new("ImageButton")
+toggleButton.Name = "ToggleButton"
+toggleButton.Size = UDim2.new(0, 50, 0, 50)
+toggleButton.Position = UDim2.new(0, 15, 0.4, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(15, 18, 25)
+toggleButton.Image = "rbxassetid://71951746964313"
+toggleButton.Parent = screenGui
+
+local toggleCorner = Instance.new("UICorner")
+toggleCorner.CornerRadius = UDim.new(0, 12)
+toggleCorner.Parent = toggleButton
+
+local toggleStroke = Instance.new("UIStroke")
+toggleStroke.Color = Color3.fromRGB(0, 120, 255)
+toggleStroke.Thickness = 2
+toggleStroke.Parent = toggleButton
+
+local draggingToggle = false
+local dragInputToggle
+local dragStartToggle
+local startPosToggle
+local movedToggle = false
+
+toggleButton.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingToggle = true
+		dragStartToggle = input.Position
+		startPosToggle = toggleButton.Position
+		movedToggle = false
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				draggingToggle = false
+			end
+		end)
+	end
+end)
+
+toggleButton.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInputToggle = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if draggingToggle and input == dragInputToggle then
+		local delta = input.Position - dragStartToggle
+		if delta.Magnitude > 5 then
+			movedToggle = true
+		end
+		toggleButton.Position = UDim2.new(
+			startPosToggle.X.Scale,
+			startPosToggle.X.Offset + delta.X,
+			startPosToggle.Y.Scale,
+			startPosToggle.Y.Offset + delta.Y
+		)
+	end
+end)
+
+-- ==========================================
+-- 1. กรอบหน้าต่างหลัก (Egg fruit)
+-- ==========================================
+local mainFrame = Instance.new("Frame")
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 500, 0, 320)
+mainFrame.Position = UDim2.new(0.5, -250, 0.5, -160)
+mainFrame.BackgroundColor3 = Color3.fromRGB(15, 18, 25)
+mainFrame.BorderSizePixel = 0
+mainFrame.Visible = true
+mainFrame.Parent = screenGui
+
+local mainCorner = Instance.new("UICorner")
+mainCorner.CornerRadius = UDim.new(0, 10)
+mainCorner.Parent = mainFrame
+
+local mainStroke = Instance.new("UIStroke")
+mainStroke.Color = Color3.fromRGB(0, 120, 255)
+mainStroke.Thickness = 2
+mainStroke.Parent = mainFrame
+
+-- ส่วนหัว (Top Bar)
+local topBar = Instance.new("Frame")
+topBar.Size = UDim2.new(1, 0, 0, 45)
+topBar.BackgroundTransparency = 1
+topBar.Parent = mainFrame
+
+local avatarImage = Instance.new("ImageLabel")
+avatarImage.Size = UDim2.new(0, 35, 0, 35)
+avatarImage.Position = UDim2.new(0, 10, 0.5, -17.5)
+avatarImage.BackgroundColor3 = Color3.fromRGB(25, 30, 45)
+avatarImage.Image = Players:GetUserThumbnailAsync(LocalPlayer.UserId, Enum.ThumbnailType.HeadShot, Enum.ThumbnailSize.Size420x420)
+avatarImage.Parent = topBar
+
+local avatarCorner = Instance.new("UICorner")
+avatarCorner.CornerRadius = UDim.new(1, 0)
+avatarCorner.Parent = avatarImage
+
+local avatarStroke = Instance.new("UIStroke")
+avatarStroke.Color = Color3.fromRGB(0, 120, 255)
+avatarStroke.Thickness = 1.5
+avatarStroke.Parent = avatarImage
+
+local titleLabel = Instance.new("TextLabel")
+titleLabel.Size = UDim2.new(0, 200, 1, 0)
+titleLabel.Position = UDim2.new(0, 55, 0, -6)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "Egg fruit"
+titleLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+titleLabel.TextSize = 18
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+titleLabel.Parent = topBar
+
+local subTitle = Instance.new("TextLabel")
+subTitle.Size = UDim2.new(0, 200, 0, 15)
+subTitle.Position = UDim2.new(0, 57, 0, 26)
+subTitle.BackgroundTransparency = 1
+subTitle.Text = "@" .. LocalPlayer.Name
+subTitle.TextColor3 = Color3.fromRGB(120, 150, 180)
+subTitle.TextSize = 10
+subTitle.Font = Enum.Font.Gotham
+subTitle.TextXAlignment = Enum.TextXAlignment.Left
+subTitle.Parent = topBar
+
+-- ==========================================
+-- 1.1 หน้าต่างยืนยัน (Confirm Overlay) สำหรับปุ่ม X
+-- ==========================================
+local confirmOverlay = Instance.new("Frame")
+confirmOverlay.Size = UDim2.new(1, 0, 1, 0)
+confirmOverlay.BackgroundColor3 = Color3.fromRGB(10, 12, 18)
+confirmOverlay.BackgroundTransparency = 0.2
+confirmOverlay.Visible = false
+confirmOverlay.ZIndex = 10
+confirmOverlay.Parent = mainFrame
+
+local confirmCorner = Instance.new("UICorner")
+confirmCorner.CornerRadius = UDim.new(0, 10)
+confirmCorner.Parent = confirmOverlay
+
+local confirmBox = Instance.new("Frame")
+confirmBox.Size = UDim2.new(0, 320, 0, 140)
+confirmBox.Position = UDim2.new(0.5, -160, 0.5, -70)
+confirmBox.BackgroundColor3 = Color3.fromRGB(20, 24, 35)
+confirmBox.BorderSizePixel = 0
+confirmBox.ZIndex = 11
+confirmBox.Parent = confirmOverlay
+
+local boxCorner = Instance.new("UICorner")
+boxCorner.CornerRadius = UDim.new(0, 8)
+boxCorner.Parent = confirmBox
+
+local boxStroke = Instance.new("UIStroke")
+boxStroke.Color = Color3.fromRGB(0, 120, 255)
+boxStroke.Thickness = 1.5
+boxStroke.Parent = confirmBox
+
+local confirmText = Instance.new("TextLabel")
+confirmText.Size = UDim2.new(1, 0, 0, 45)
+confirmText.Position = UDim2.new(0, 0, 0, 15)
+confirmText.BackgroundTransparency = 1
+confirmText.Text = "จะ ตกลง หรือ ไม่ ตกลง"
+confirmText.TextColor3 = Color3.fromRGB(255, 255, 255)
+confirmText.TextSize = 16
+confirmText.Font = Enum.Font.GothamBold
+confirmText.ZIndex = 11
+confirmText.Parent = confirmBox
+
+-- ปุ่ม ตกลง (ลบ UI ทิ้ง)
+local btnYes = Instance.new("TextButton")
+btnYes.Size = UDim2.new(0, 130, 0, 38)
+btnYes.Position = UDim2.new(0.07, 0, 0, 75)
+btnYes.BackgroundColor3 = Color3.fromRGB(0, 140, 70)
+btnYes.Text = "ตกลง"
+btnYes.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnYes.TextSize = 14
+btnYes.Font = Enum.Font.GothamBold
+btnYes.ZIndex = 11
+btnYes.Parent = confirmBox
+
+local yesCorner = Instance.new("UICorner")
+yesCorner.CornerRadius = UDim.new(0, 6)
+yesCorner.Parent = btnYes
+
+-- ปุ่ม ไม่ตกลง (กลับหน้าเดิม)
+local btnNo = Instance.new("TextButton")
+btnNo.Size = UDim2.new(0, 130, 0, 38)
+btnNo.Position = UDim2.new(0.53, 0, 0, 75)
+btnNo.BackgroundColor3 = Color3.fromRGB(160, 40, 40)
+btnNo.Text = "ไม่ตกลง"
+btnNo.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnNo.TextSize = 14
+btnNo.Font = Enum.Font.GothamBold
+btnNo.ZIndex = 11
+btnNo.Parent = confirmBox
+
+local noCorner = Instance.new("UICorner")
+noCorner.CornerRadius = UDim.new(0, 6)
+noCorner.Parent = btnNo
+
+-- 📌 ปุ่ม X สำหรับเปิดหน้าต่างยืนยันที่มุมขวาบน
+local closeButton = Instance.new("TextButton")
+closeButton.Name = "CloseButton"
+closeButton.Size = UDim2.new(0, 30, 0, 30)
+closeButton.Position = UDim2.new(1, -38, 0.5, -15)
+closeButton.BackgroundColor3 = Color3.fromRGB(160, 40, 40)
+closeButton.Text = "X"
+closeButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeButton.TextSize = 14
+closeButton.Font = Enum.Font.GothamBold
+closeButton.Parent = topBar
+
+local closeCorner = Instance.new("UICorner")
+closeCorner.CornerRadius = UDim.new(0, 6)
+closeCorner.Parent = closeButton
+
+-- เมื่อกด X จะแสดงหน้าต่างยืนยัน
+closeButton.MouseButton1Click:Connect(function()
+	confirmOverlay.Visible = true
+end)
+
+-- ถ้ากด "ตกลง" -> ลบ UI ทิ้งทั้งหมด
+btnYes.MouseButton1Click:Connect(function()
+	screenGui:Destroy()
+end)
+
+-- ถ้ากด "ไม่ตกลง" -> ปิดหน้าต่างยืนยัน กลับสู่หน้าเดิม
+btnNo.MouseButton1Click:Connect(function()
+	confirmOverlay.Visible = false
+end)
+
+-- ระบบลากย้ายหน้าต่างหลัก
+local draggingMain = false
+local dragInputMain
+local dragStartMain
+local startPosMain
+
+topBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingMain = true
+		dragStartMain = input.Position
+		startPosMain = mainFrame.Position
+		
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then
+				draggingMain = false
+			end
+		end)
+	end
+end)
+
+topBar.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInputMain = input
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if draggingMain and input == dragInputMain then
+		local delta = input.Position - dragStartMain
+		mainFrame.Position = UDim2.new(
+			startPosMain.X.Scale,
+			startPosMain.X.Offset + delta.X,
+			startPosMain.Y.Scale,
+			startPosMain.Y.Offset + delta.Y
+		)
+	end
+end)
+
+-- ==========================================
+-- 2. เมนูด้านซ้าย ( Sidebar )
+-- ==========================================
+local sidebar = Instance.new("Frame")
+sidebar.Size = UDim2.new(0, 130, 1, -55)
+sidebar.Position = UDim2.new(0, 10, 0, 45)
+sidebar.BackgroundColor3 = Color3.fromRGB(10, 12, 18)
+sidebar.BorderSizePixel = 0
+sidebar.Parent = mainFrame
+
+local sidebarCorner = Instance.new("UICorner")
+sidebarCorner.CornerRadius = UDim.new(0, 8)
+sidebarCorner.Parent = sidebar
+
+local sidebarStroke = Instance.new("UIStroke")
+sidebarStroke.Color = Color3.fromRGB(30, 60, 100)
+sidebarStroke.Thickness = 1
+sidebarStroke.Parent = sidebar
+
+local btnMain = Instance.new("TextButton")
+btnMain.Size = UDim2.new(1, -10, 0, 35)
+btnMain.Position = UDim2.new(0, 5, 0, 15)
+btnMain.BackgroundColor3 = Color3.fromRGB(20, 45, 80)
+btnMain.Text = "🏠 หน้าหลัก"
+btnMain.TextColor3 = Color3.fromRGB(255, 255, 255)
+btnMain.TextSize = 12
+btnMain.Font = Enum.Font.GothamBold
+btnMain.Parent = sidebar
+
+local mainCornerBtn = Instance.new("UICorner")
+mainCornerBtn.CornerRadius = UDim.new(0, 6)
+mainCornerBtn.Parent = btnMain
+
+local btnSettings = Instance.new("TextButton")
+btnSettings.Size = UDim2.new(1, -10, 0, 35)
+btnSettings.Position = UDim2.new(0, 5, 0, 58)
+btnSettings.BackgroundColor3 = Color3.fromRGB(12, 15, 22)
+btnSettings.Text = "⚙️ ตั้งค่า"
+btnSettings.TextColor3 = Color3.fromRGB(150, 160, 180)
+btnSettings.TextSize = 12
+btnSettings.Font = Enum.Font.GothamBold
+btnSettings.Parent = sidebar
+
+local settingsCornerBtn = Instance.new("UICorner")
+settingsCornerBtn.CornerRadius = UDim.new(0, 6)
+settingsCornerBtn.Parent = btnSettings
+
+-- ==========================================
+-- 3. หน้าต่างเนื้อหาขวา (Content Panel)
+-- ==========================================
+local contentPanel = Instance.new("Frame")
+contentPanel.Size = UDim2.new(1, -150, 1, -55)
+contentPanel.Position = UDim2.new(0, 145, 0, 45)
+contentPanel.BackgroundColor3 = Color3.fromRGB(10, 12, 18)
+contentPanel.BorderSizePixel = 0
+contentPanel.Parent = mainFrame
+
+local contentCorner = Instance.new("UICorner")
+contentCorner.CornerRadius = UDim.new(0, 8)
+contentCorner.Parent = contentPanel
+
+local contentStroke = Instance.new("UIStroke")
+contentStroke.Color = Color3.fromRGB(30, 60, 100)
+contentStroke.Thickness = 1
+contentStroke.Parent = contentPanel
+
+-- หน้าที่ 1: หน้าหลัก
+local pageMain = Instance.new("Frame")
+pageMain.Size = UDim2.new(1, 0, 1, 0)
+pageMain.BackgroundTransparency = 1
+pageMain.Visible = true
+pageMain.Parent = contentPanel
+
+local mainPageTitle = Instance.new("TextLabel")
+mainPageTitle.Size = UDim2.new(1, -15, 0, 30)
+mainPageTitle.Position = UDim2.new(0, 10, 0, 8)
+mainPageTitle.BackgroundTransparency = 1
+mainPageTitle.Text = "◆ ระบบหลัก (MAIN FEATURES)"
+mainPageTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+mainPageTitle.TextSize = 13
+mainPageTitle.Font = Enum.Font.GothamBold
+mainPageTitle.TextXAlignment = Enum.TextXAlignment.Left
+mainPageTitle.Parent = pageMain
+
+local mainPageLabel = Instance.new("TextLabel")
+mainPageLabel.Size = UDim2.new(1, -20, 0, 30)
+mainPageLabel.Position = UDim2.new(0, 10, 0, 45)
+mainPageLabel.BackgroundTransparency = 1
+mainPageLabel.Text = "กดปุ่ม X มุมขวาบนเพื่อทดสอบระบบยืนยันการลบ UI"
+mainPageLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+mainPageLabel.TextSize = 11
+mainPageLabel.Font = Enum.Font.Gotham
+mainPageLabel.TextXAlignment = Enum.TextXAlignment.Left
+mainPageLabel.Parent = pageMain
+
+-- หน้าที่ 2: ตั้งค่า (ESP เส้น)
+local pageSettings = Instance.new("Frame")
+pageSettings.Size = UDim2.new(1, 0, 1, 0)
+pageSettings.BackgroundTransparency = 1
+pageSettings.Visible = false
+pageSettings.Parent = contentPanel
+
+local settingsTitle = Instance.new("TextLabel")
+settingsTitle.Size = UDim2.new(1, -15, 0, 30)
+settingsTitle.Position = UDim2.new(0, 10, 0, 8)
+settingsTitle.BackgroundTransparency = 1
+settingsTitle.Text = "◆ ตั้งค่าระบบ (SETTINGS)"
+settingsTitle.TextColor3 = Color3.fromRGB(255, 255, 255)
+settingsTitle.TextSize = 13
+settingsTitle.Font = Enum.Font.GothamBold
+settingsTitle.TextXAlignment = Enum.TextXAlignment.Left
+settingsTitle.Parent = pageSettings
+
+local settingsLabel = Instance.new("TextLabel")
+settingsLabel.Size = UDim2.new(1, -20, 0, 20)
+settingsLabel.Position = UDim2.new(0, 10, 0, 40)
+settingsLabel.BackgroundTransparency = 1
+settingsLabel.Text = "ลากแถบหัวข้อเพื่อย้ายหน้าต่าง / มุมขวาล่างเพื่อปรับขนาด"
+settingsLabel.TextColor3 = Color3.fromRGB(150, 150, 150)
+settingsLabel.TextSize = 10
+settingsLabel.Font = Enum.Font.Gotham
+settingsLabel.TextXAlignment = Enum.TextXAlignment.Left
+settingsLabel.Parent = pageSettings
+
+local espContainer = Instance.new("Frame")
+espContainer.Size = UDim2.new(1, -20, 0, 38)
+espContainer.Position = UDim2.new(0, 10, 0, 72)
+espContainer.BackgroundColor3 = Color3.fromRGB(20, 24, 35)
+espContainer.BorderSizePixel = 0
+espContainer.Parent = pageSettings
+
+local espContainerCorner = Instance.new("UICorner")
+espContainerCorner.CornerRadius = UDim.new(0, 6)
+espContainerCorner.Parent = espContainer
+
+local espText = Instance.new("TextLabel")
+espText.Size = UDim2.new(1, -60, 1, 0)
+espText.Position = UDim2.new(0, 12, 0, 0)
+espText.BackgroundTransparency = 1
+espText.Text = "ESP เส้น (Line ESP)"
+espText.TextColor3 = Color3.fromRGB(255, 255, 255)
+espText.TextSize = 12
+espText.Font = Enum.Font.GothamBold
+espText.TextXAlignment = Enum.TextXAlignment.Left
+espText.Parent = espContainer
+
+local switchBg = Instance.new("TextButton")
+switchBg.Size = UDim2.new(0, 44, 0, 22)
+switchBg.Position = UDim2.new(1, -54, 0.5, -11)
+switchBg.BackgroundColor3 = Color3.fromRGB(40, 45, 60)
+switchBg.Text = ""
+switchBg.Parent = espContainer
+
+local switchCorner = Instance.new("UICorner")
+switchCorner.CornerRadius = UDim.new(1, 0)
+switchCorner.Parent = switchBg
+
+local switchCircle = Instance.new("Frame")
+switchCircle.Size = UDim2.new(0, 18, 0, 18)
+switchCircle.Position = UDim2.new(0, 2, 0.5, -9)
+switchCircle.BackgroundColor3 = Color3.fromRGB(200, 200, 200)
+switchCircle.Parent = switchBg
+
+local circleCorner = Instance.new("UICorner")
+circleCorner.CornerRadius = UDim.new(1, 0)
+circleCorner.Parent = switchCircle
+
+-- ==========================================
+-- ระบบ ESP เส้น
+-- ==========================================
+local espEnabled = false
+local espLines = {}
+
+local function createLine()
+	local line = Drawing.new("Line")
+	line.Visible = false
+	line.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+	line.To = Vector2.new(0, 0)
+	line.Color = Color3.fromRGB(0, 120, 255)
+	line.Thickness = 1.5
+	line.Transparency = 1
+	return line
+end
+
+local function toggleEsp()
+	espEnabled = not espEnabled
+	
+	local info = TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out)
+	if espEnabled then
+		TweenService:Create(switchBg, info, {BackgroundColor3 = Color3.fromRGB(0, 120, 255)}):Play()
+		TweenService:Create(switchCircle, info, {Position = UDim2.new(1, -20, 0.5, -9), BackgroundColor3 = Color3.fromRGB(255, 255, 255)}):Play()
+	else
+		TweenService:Create(switchBg, info, {BackgroundColor3 = Color3.fromRGB(40, 45, 60)}):Play()
+		TweenService:Create(switchCircle, info, {Position = UDim2.new(0, 2, 0.5, -9), BackgroundColor3 = Color3.fromRGB(200, 200, 200)}):Play()
+		
+		for _, line in pairs(espLines) do
+			line.Visible = false
+			line:Remove()
+		end
+		espLines = {}
+	end
+end
+
+switchBg.MouseButton1Click:Connect(toggleEsp)
+espContainer.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		toggleEsp()
+	end
+end)
+
+RunService.RenderStepped:Connect(function()
+	if not espEnabled then return end
+	
+	for _, player in pairs(Players:GetPlayers()) do
+		if player ~= LocalPlayer and player.Character and player.Character:FindFirstChild("HumanoidRootPart") then
+			local hrp = player.Character.HumanoidRootPart
+			local vector, onScreen = Camera:WorldToViewportPoint(hrp.Position)
+			
+			if not espLines[player] then
+				espLines[player] = createLine()
+			end
+			
+			local line = espLines[player]
+			if onScreen then
+				line.From = Vector2.new(Camera.ViewportSize.X / 2, Camera.ViewportSize.Y)
+				line.To = Vector2.new(vector.X, vector.Y)
+				line.Visible = true
+			else
+				line.Visible = false
+			end
+		else
+			if espLines[player] then
+				espLines[player].Visible = false
+			end
+		end
+	end
+end)
+
+-- ==========================================
+-- ระบบสลับหน้าเมนู
+-- ==========================================
+btnMain.MouseButton1Click:Connect(function()
+	pageMain.Visible = true
+	pageSettings.Visible = false
+	
+	btnMain.BackgroundColor3 = Color3.fromRGB(20, 45, 80)
+	btnMain.TextColor3 = Color3.fromRGB(255, 255, 255)
+	
+	btnSettings.BackgroundColor3 = Color3.fromRGB(12, 15, 22)
+	btnSettings.TextColor3 = Color3.fromRGB(150, 160, 180)
+end)
+
+btnSettings.MouseButton1Click:Connect(function()
+	pageMain.Visible = false
+	pageSettings.Visible = true
+	
+	btnSettings.BackgroundColor3 = Color3.fromRGB(20, 45, 80)
+	btnSettings.TextColor3 = Color3.fromRGB(255, 255, 255)
+	
+	btnMain.BackgroundColor3 = Color3.fromRGB(12, 15, 22)
+	btnMain.TextColor3 = Color3.fromRGB(150, 160, 180)
+end)
+
+-- ==========================================
+-- 4. ปุ่มปรับขนาด (Resize Handle) มุมขวาล่าง
+-- ==========================================
+local resizeButton = Instance.new("TextButton")
+resizeButton.Name = "ResizeHandle"
+resizeButton.Size = UDim2.new(0, 20, 0, 20)
+resizeButton.Position = UDim2.new(1, -20, 1, -20)
+resizeButton.BackgroundColor3 = Color3.fromRGB(0, 120, 255)
+resizeButton.Text = ""
+resizeButton.Parent = mainFrame
+
+local resizeCorner = Instance.new("UICorner")
+resizeCorner.CornerRadius = UDim.new(0, 4)
+resizeCorner.Parent = resizeButton
+
+local draggingResize = false
+local resizeStart = nil
+local startSize = nil
+
+resizeButton.MouseButton1Down:Connect(function()
+	draggingResize = true
+	resizeStart = UserInputService:GetMouseLocation()
+	startSize = mainFrame.AbsoluteSize
+end)
+
+UserInputService.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingResize = false
+	end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+	if draggingResize and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local currentPos = UserInputService:GetMouseLocation()
+		local delta = currentPos - resizeStart
+		local newWidth = math.clamp(startSize.X + delta.X, 350, 900)
+		local newHeight = math.clamp(startSize.Y + delta.Y, 220, 600)
+		mainFrame.Size = UDim2.new(0, newWidth, 0, newHeight)
+	end
+end)
+
+-- ระบบคลิกเปิด-ปิด UI จากปุ่มลอยด้านซ้าย
+toggleButton.MouseButton1Click:Connect(function()
+	if not movedToggle then
+		mainFrame.Visible = not mainFrame.Visible
+	end
+end)
